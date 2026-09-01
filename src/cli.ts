@@ -1,8 +1,10 @@
 #!/usr/bin/env node
+import { access } from "node:fs/promises";
 import { resolve } from "node:path";
 import { buildEvaluationPrompt } from "./prompt.js";
 import { extractJsonObject, readStructuredFile } from "./io.js";
 import { runCodex } from "./codex.js";
+import { verifyHandoff } from "./integrity.js";
 import { validateEvaluation } from "./validate.js";
 import type { EvidencePackage, WorkContract } from "./types.js";
 
@@ -25,15 +27,19 @@ async function main(): Promise<void> {
   const evidencePath = resolve(option(args, "--evidence"));
   const repo = resolve(option(args, "--repo"));
 
+  await Promise.all([access(contractPath), access(evidencePath), access(repo)]);
+
   const contract = await readStructuredFile<WorkContract>(contractPath);
   const evidence = await readStructuredFile<EvidencePackage>(evidencePath);
 
   if (!contract.work_item || !contract.objective || !contract.acceptance_criteria) {
     throw new Error("Invalid Work Contract: work_item, objective, and acceptance_criteria are required");
   }
-  if (evidence.workItem && evidence.workItem !== contract.work_item) {
-    throw new Error(`Evidence workItem '${evidence.workItem}' does not match contract '${contract.work_item}'`);
+  if (Object.keys(contract.acceptance_criteria).length === 0) {
+    throw new Error("Invalid Work Contract: at least one acceptance criterion is required");
   }
+
+  await verifyHandoff(contractPath, contract, evidence);
 
   const prompt = buildEvaluationPrompt(contract, evidence);
   const raw = await runCodex(repo, prompt);
