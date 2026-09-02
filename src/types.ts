@@ -2,10 +2,40 @@ export type EvaluationStatus = "pass" | "fail" | "needs_decision";
 export type CriterionStatus = "pass" | "fail" | "partial" | "not_verified";
 export type FindingSeverity = "critical" | "high" | "medium" | "low";
 
+export interface IntentReference {
+  path: string;
+  revision: string;
+  sha256: string;
+  reviewUrl: string;
+  status: "Accepted";
+  acceptedBy: string;
+  acceptedAt: string;
+}
+
+export interface BoardReference {
+  provider: "trello" | "jira" | "azure_devops" | "other";
+  workItemId: string;
+  workItemUrl: string;
+  workItemType: "User Story" | "Feature" | "Epic" | "Technical Enabler";
+  parentWorkItemId?: string;
+  parentWorkItemUrl?: string;
+  priority?: {
+    band: string;
+    reviewAttention: string;
+    confidence: string;
+    readyState: string;
+    sequencingScore?: number;
+    rationale: string;
+  };
+}
+
 export interface WorkContract {
+  schema_version: 2;
   work_item: string;
   objective: string;
   acceptance_criteria: Record<string, string>;
+  intent: IntentReference;
+  board: BoardReference;
   constraints?: string[];
   architectural_constraints?: string[];
   known_dependencies?: string[];
@@ -59,6 +89,28 @@ export interface EvaluationResult {
   scope: {
     status: "acceptable" | "unexpected_changes" | "not_verified";
     unexpectedChanges: string[];
+  };
+  preflight: {
+    status: "pass" | "needs_decision";
+    facts: string[];
+    inferences: string[];
+    decisionsRequired: string[];
+  };
+  traceability: {
+    intentPath: string;
+    intentRevision: string;
+    intentHash: string;
+    contractHash: string;
+    evidenceRunId: string;
+    boardWorkItemUrl: string;
+  };
+  decisionBrief?: {
+    decisionRequired: string;
+    whyNow: string;
+    knownFacts: string[];
+    evaluatorInferences: string[];
+    options: { option: string; impact: string }[];
+    consequenceOfNoDecision: string;
   };
   recommendation: "human_approval" | "return_to_coding_agent" | "human_decision";
 }

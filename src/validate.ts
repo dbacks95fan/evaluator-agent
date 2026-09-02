@@ -50,6 +50,9 @@ export function validateEvaluation(value: unknown, contract: WorkContract): Eval
   if (!result.scope || !Array.isArray(result.scope.unexpectedChanges)) {
     throw new Error("Missing scope evaluation");
   }
+  if (!result.preflight || result.preflight.status !== "pass" || !Array.isArray(result.preflight.facts) || !Array.isArray(result.preflight.inferences) || !Array.isArray(result.preflight.decisionsRequired)) throw new Error("Missing or failed preflight evaluation");
+  if (!result.traceability || result.traceability.intentPath !== contract.intent.path || result.traceability.intentHash !== contract.intent.sha256 || result.traceability.boardWorkItemUrl !== contract.board.workItemUrl) throw new Error("Evaluation traceability does not match the Work Contract");
+  if (result.status === "needs_decision" && !result.decisionBrief) throw new Error("needs_decision requires a decision brief");
 
   return result;
 }

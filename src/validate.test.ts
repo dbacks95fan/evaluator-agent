@@ -4,9 +4,12 @@ import { validateEvaluation } from "./validate.js";
 import type { WorkContract } from "./types.js";
 
 const contract: WorkContract = {
+  schema_version: 2,
   work_item: "TEST-1",
   objective: "Prove validation behavior",
   acceptance_criteria: { AC1: "Required behavior works" },
+  intent: { path: ".agent/work/TEST-1/intent.md", revision: "abc123", sha256: "intent-hash", reviewUrl: "https://example.test/intent", status: "Accepted", acceptedBy: "Test User", acceptedAt: "2026-09-02T00:00:00Z" },
+  board: { provider: "trello", workItemId: "TEST-1", workItemUrl: "https://trello.test/TEST-1", workItemType: "User Story" },
 };
 
 function passingResult() {
@@ -20,6 +23,8 @@ function passingResult() {
     findings: [],
     risks: [],
     scope: { status: "acceptable", unexpectedChanges: [] },
+    preflight: { status: "pass", facts: ["Accepted intent verified"], inferences: [], decisionsRequired: [] },
+    traceability: { intentPath: contract.intent.path, intentRevision: "abc123", intentHash: contract.intent.sha256, contractHash: "contract-hash", evidenceRunId: "run-1", boardWorkItemUrl: contract.board.workItemUrl },
     recommendation: "human_approval",
   };
 }

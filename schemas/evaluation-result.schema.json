@@ -1,56 +1,21 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.local/schemas/evaluation-result.schema.json",
-  "title": "Evaluation Result",
+  "title": "Evaluation Result v2",
   "type": "object",
   "additionalProperties": false,
-  "required": ["workItem", "status", "summary", "acceptanceCriteria", "findings", "risks", "scope", "recommendation"],
+  "required": ["workItem", "status", "summary", "acceptanceCriteria", "findings", "risks", "scope", "preflight", "traceability", "recommendation"],
   "properties": {
     "workItem": { "type": "string", "minLength": 1 },
     "status": { "enum": ["pass", "fail", "needs_decision"] },
     "summary": { "type": "string", "minLength": 1 },
-    "acceptanceCriteria": {
-      "type": "object",
-      "additionalProperties": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["status", "evidence", "explanation"],
-        "properties": {
-          "status": { "enum": ["pass", "fail", "partial", "not_verified"] },
-          "evidence": { "type": "array", "items": { "type": "string" } },
-          "explanation": { "type": "string", "minLength": 1 }
-        }
-      }
-    },
-    "findings": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["id", "severity", "type", "problem", "evidence"],
-        "properties": {
-          "id": { "type": "string", "minLength": 1 },
-          "severity": { "enum": ["critical", "high", "medium", "low"] },
-          "type": { "enum": ["acceptance_criteria", "defect", "regression", "scope", "test_quality", "architecture", "security", "risk", "other"] },
-          "criterion": { "type": "string" },
-          "file": { "type": "string" },
-          "line": { "type": "integer", "minimum": 1 },
-          "problem": { "type": "string", "minLength": 1 },
-          "evidence": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
-          "expectedBehavior": { "type": "string" }
-        }
-      }
-    },
+    "acceptanceCriteria": { "type": "object" },
+    "findings": { "type": "array" },
     "risks": { "type": "array", "items": { "type": "string" } },
-    "scope": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["status", "unexpectedChanges"],
-      "properties": {
-        "status": { "enum": ["acceptable", "unexpected_changes", "not_verified"] },
-        "unexpectedChanges": { "type": "array", "items": { "type": "string" } }
-      }
-    },
+    "scope": { "type": "object", "required": ["status", "unexpectedChanges"], "properties": { "status": { "enum": ["acceptable", "unexpected_changes", "not_verified"] }, "unexpectedChanges": { "type": "array", "items": { "type": "string" } } } },
+    "preflight": { "type": "object", "required": ["status", "facts", "inferences", "decisionsRequired"], "properties": { "status": { "enum": ["pass", "needs_decision"] }, "facts": { "type": "array", "items": { "type": "string" } }, "inferences": { "type": "array", "items": { "type": "string" } }, "decisionsRequired": { "type": "array", "items": { "type": "string" } } } },
+    "traceability": { "type": "object", "required": ["intentPath", "intentRevision", "intentHash", "contractHash", "evidenceRunId", "boardWorkItemUrl"], "properties": { "intentPath": { "type": "string" }, "intentRevision": { "type": "string" }, "intentHash": { "type": "string" }, "contractHash": { "type": "string" }, "evidenceRunId": { "type": "string" }, "boardWorkItemUrl": { "type": "string" } } },
+    "decisionBrief": { "type": "object", "required": ["decisionRequired", "whyNow", "knownFacts", "evaluatorInferences", "options", "consequenceOfNoDecision"] },
     "recommendation": { "enum": ["human_approval", "return_to_coding_agent", "human_decision"] }
   }
 }

@@ -2,17 +2,22 @@ import { spawn } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 export async function runCodex(repo: string, prompt: string): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), "evaluator-agent-"));
   const outputFile = join(dir, "last-message.txt");
+  const outputSchema = fileURLToPath(new URL("../schemas/evaluation-result.schema.json", import.meta.url));
 
   try {
     const args = [
       "exec",
+      "--ephemeral",
       "--sandbox",
       "read-only",
       "--json",
+      "--output-schema",
+      outputSchema,
       "--output-last-message",
       outputFile,
       "-C",

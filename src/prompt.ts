@@ -1,18 +1,21 @@
+import type { ParsedIntent } from "./intent.js";
 import type { EvidencePackage, WorkContract } from "./types.js";
 
-export function buildEvaluationPrompt(contract: WorkContract, evidence: EvidencePackage): string {
+export function buildEvaluationPrompt(contract: WorkContract, evidence: EvidencePackage, intent: ParsedIntent, contractHash: string): string {
   return `You are an independent software Evaluator Agent. A separate Coding Agent produced the candidate implementation in the current repository.
 
 Your job is to determine whether the candidate actually satisfies the approved Work Contract.
 
 GOVERNANCE
 - The Work Contract is authoritative. Do not reinterpret or modify it.
+- The accepted intent is the outcome authority. Verify implementation alignment without expanding scope.
 - The Coding Agent evidence package is a map, not proof. Independently verify claims where possible.
 - Be skeptical and attempt to falsify each acceptance criterion.
 - Inspect the actual repository, git diff, relevant surrounding code, and tests.
 - You are read-only. Never modify files, install packages, commit, merge, or deploy.
 - Do not fail work for personal style preferences.
 - Report findings only when supported by concrete evidence.
+- Separate known facts from evaluator inferences. Do not invent targets, decisions, or evidence.
 - If an implementation defect can be fixed without product judgment, status should be fail.
 - If proceeding requires a product, architectural, security, or scope decision not resolved by the contract, status should be needs_decision.
 - Use pass only when every acceptance criterion is sufficiently verified and no material blocking finding remains.
@@ -30,6 +33,9 @@ ${JSON.stringify(contract, null, 2)}
 
 CODING AGENT EVIDENCE PACKAGE
 ${JSON.stringify(evidence, null, 2)}
+
+ACCEPTED INTENT METADATA
+${JSON.stringify(intent, null, 2)}
 
 Return ONLY a JSON object matching this shape:
 {
@@ -61,6 +67,12 @@ Return ONLY a JSON object matching this shape:
     "status": "acceptable | unexpected_changes | not_verified",
     "unexpectedChanges": []
   },
+  "preflight": { "status": "pass", "facts": ["..."], "inferences": [], "decisionsRequired": [] },
+  "traceability": {
+    "intentPath": "${contract.intent.path}", "intentRevision": "${contract.intent.revision}", "intentHash": "${contract.intent.sha256}",
+    "contractHash": "${contractHash}", "evidenceRunId": "${evidence.runId ?? "unknown"}", "boardWorkItemUrl": "${contract.board.workItemUrl}"
+  },
+  "decisionBrief": { "decisionRequired": "required only for needs_decision", "whyNow": "...", "knownFacts": ["..."], "evaluatorInferences": ["..."], "options": [{ "option": "...", "impact": "..." }], "consequenceOfNoDecision": "..." },
   "recommendation": "human_approval | return_to_coding_agent | human_decision"
 }
 
