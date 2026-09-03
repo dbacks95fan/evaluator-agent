@@ -14,8 +14,8 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/schemas ./schemas
 COPY --from=build /usr/local/lib/node_modules /usr/local/lib/node_modules
-COPY --from=build /usr/local/bin/codex /usr/local/bin/codex
-RUN useradd --system --uid 10001 --create-home evaluator
+RUN ln -s /usr/local/lib/node_modules/@openai/codex/bin/codex.js /usr/local/bin/codex \
+  && useradd --system --uid 10001 --create-home evaluator
 USER evaluator
 EXPOSE 8080
 CMD ["node", "dist/service.js"]
