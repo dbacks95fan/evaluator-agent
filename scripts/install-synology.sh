@@ -18,4 +18,4 @@ printf 'EVALUATOR_IMAGE=%s\n' "$image" > "$target/.env"
 sudo /usr/local/bin/docker load -i "$package_dir/evaluator-agent-image.tar"
 cd "$target"
 sudo /usr/local/bin/docker-compose up -d --no-build
-echo "Evaluator image installed. Verify with: curl http://localhost:8080/health"
+EVALUATOR_SECRETS_FILE="$secrets" sh "$package_dir/verify-deployment.sh"

@@ -77,6 +77,17 @@ npm run check
 
 `npm run check` compiles the TypeScript and runs the deterministic unit tests. A successful check verifies the local code but does not substitute for an end-to-end Codex evaluation test.
 
+## Deployment verification and logs
+
+The Synology installer performs two checks before reporting deployment success:
+
+1. It requires `GET /health` to return HTTP `200` and `{"status":"ok"}`.
+2. It calls the authenticated `POST /deployment-tests/codex-auth` endpoint. This makes one real, low-scope Codex request using `OPENAI_API_KEY`; it verifies Codex authentication, outbound connectivity, and a structured response.
+
+The terminal report names the test, explains its method, and reports `RUN`, `PASS`, or `FAIL`. A browser-readable, in-memory status view is available at `http://<nas-lan-ip>:8080/`. The view resets when the stateless container restarts.
+
+Container logs are structured JSON lines. Each includes a timestamp, severity, event name, and correlation ID where applicable. The service redacts recognizable OpenAI keys and bearer credentials from logged errors.
+
 ## Usage
 
 ```bash
