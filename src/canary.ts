@@ -26,7 +26,7 @@ export async function runCodexAuthenticationCanary(): Promise<CodexCanaryResult>
   const outputSchema = fileURLToPath(new URL("../schemas/codex-auth-canary.schema.json", import.meta.url));
 
   try {
-    const args = ["exec", "--ephemeral", "--sandbox", "read-only", "--output-schema", outputSchema, "--output-last-message", outputFile, "-C", "/tmp", "Return exactly this JSON object: {\"status\":\"authenticated\"}. Do not access files or run commands."];
+    const args = ["exec", "--ephemeral", "--sandbox", "read-only", "--skip-git-repo-check", "--output-schema", outputSchema, "--output-last-message", outputFile, "-C", "/tmp", "Return exactly this JSON object: {\"status\":\"authenticated\"}. Do not access files or run commands."];
     await new Promise<void>((resolve, reject) => {
       const child = spawn("codex", args, { cwd: "/tmp", stdio: ["ignore", "pipe", "pipe"] });
       let stderr = "";
