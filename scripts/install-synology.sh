@@ -10,7 +10,7 @@ test -f "$package_dir/SHA256SUMS"
 test -f "$secrets" || { echo "Missing evaluator secrets file: $secrets" >&2; exit 1; }
 
 mkdir -p "$target/jobs/input" "$target/jobs/output"
-cp "$package_dir/compose.yaml" "$target/compose.yaml"
+cp "$package_dir/compose.yaml" "$target/docker-compose.yaml"
 ln -sfn "$secrets" "$target/.runtime.env"
 sudo /usr/local/bin/docker load -i "$package_dir/evaluator-agent-image.tar"
 cd "$target"
