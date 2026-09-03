@@ -7,7 +7,7 @@ services:
     ports:
       - "${EVALUATOR_HTTP_PORT:-8080}:8080"
     env_file:
-      - /home/DockerDeploy/.config/agentic-sdlc/runtime.env
+      - ./.runtime.env
     environment:
       PORT: "8080"
       EVALUATOR_INPUT_ROOT: /jobs/input

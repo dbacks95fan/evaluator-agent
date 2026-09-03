@@ -11,6 +11,7 @@ test -f "$secrets" || { echo "Missing evaluator secrets file: $secrets" >&2; exi
 
 mkdir -p "$target/jobs/input" "$target/jobs/output"
 cp "$package_dir/compose.yaml" "$target/compose.yaml"
+ln -sfn "$secrets" "$target/.runtime.env"
 sudo /usr/local/bin/docker load -i "$package_dir/evaluator-agent-image.tar"
 cd "$target"
 sudo /usr/local/bin/docker-compose up -d --no-build
