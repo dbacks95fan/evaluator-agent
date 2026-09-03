@@ -28,7 +28,7 @@ export async function runCodexAuthenticationCanary(): Promise<CodexCanaryResult>
   try {
     const args = ["exec", "--ephemeral", "--sandbox", "read-only", "--skip-git-repo-check", "--output-schema", outputSchema, "--output-last-message", outputFile, "-C", "/tmp", "Return exactly this JSON object: {\"status\":\"authenticated\"}. Do not access files or run commands."];
     await new Promise<void>((resolve, reject) => {
-      const child = spawn("codex", args, { cwd: "/tmp", stdio: ["ignore", "pipe", "pipe"] });
+      const child = spawn("codex", args, { cwd: "/tmp", stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, HOME: "/tmp", CODEX_HOME: "/tmp/.codex" } });
       let stderr = "";
       child.stderr.on("data", (chunk) => { stderr += String(chunk); });
       child.on("error", reject);

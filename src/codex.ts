@@ -26,7 +26,7 @@ export async function runCodex(repo: string, prompt: string): Promise<string> {
     ];
 
     await new Promise<void>((resolve, reject) => {
-      const child = spawn("codex", args, { cwd: repo, stdio: ["ignore", "pipe", "pipe"] });
+      const child = spawn("codex", args, { cwd: repo, stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, HOME: "/tmp", CODEX_HOME: "/tmp/.codex" } });
       let stderr = "";
       child.stderr.on("data", (chunk) => { stderr += String(chunk); });
       child.on("error", reject);
