@@ -1,7 +1,7 @@
 services:
   evaluator:
     build: .
-    image: evaluator-agent:local
+    image: "${EVALUATOR_IMAGE:-evaluator-agent:local}"
     container_name: evaluator-agent
     restart: unless-stopped
     ports:
