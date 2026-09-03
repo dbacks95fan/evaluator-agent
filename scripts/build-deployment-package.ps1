@@ -17,5 +17,5 @@ docker save --output (Join-Path $package "evaluator-agent-image.tar") $image
 Copy-Item -LiteralPath (Join-Path $repo "compose.yaml") -Destination $package -Force
 Copy-Item -LiteralPath (Join-Path $repo "scripts\install-synology.sh") -Destination $package -Force
 [System.IO.File]::WriteAllText((Join-Path $package "manifest.json"), "{`n  `"commit`": `"$commit`",`n  `"image`": `"$image`",`n  `"platform`": `"linux/amd64`"`n}`n")
-Get-ChildItem -LiteralPath $package -File | Where-Object { $_.Name -ne "SHA256SUMS" } | Get-FileHash -Algorithm SHA256 | ForEach-Object { "{0}  {1}" -f $_.Hash.ToLower(), $_.Path.Substring($package.Length + 1) } | Set-Content -LiteralPath (Join-Path $package "SHA256SUMS") -NoNewline
+Get-ChildItem -LiteralPath $package -File | Where-Object { $_.Name -ne "SHA256SUMS" } | Get-FileHash -Algorithm SHA256 | ForEach-Object { "{0}  {1}" -f $_.Hash.ToLower(), $_.Path.Substring($package.Length + 1) } | Set-Content -LiteralPath (Join-Path $package "SHA256SUMS")
 Write-Output $package
