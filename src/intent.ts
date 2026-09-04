@@ -22,7 +22,8 @@ export async function readIntent(path: string): Promise<ParsedIntent> {
   const status = value(raw, "Status");
   if (!workItem || !status) throw new Error("Intent is missing Identity Work ID or Status");
 
-  const decisions = raw.match(/## Open decisions\s*\n([\s\S]*?)(?=\n## |$)/i)?.[1] ?? "";
+  // Limit whitespace after the heading to its own line so an empty section cannot absorb the next heading.
+  const decisions = raw.match(/## Open decisions[ \t]*\r?\n([\s\S]*?)(?=\r?\n## |\s*$)/i)?.[1] ?? "";
   return {
     workItem,
     status,
