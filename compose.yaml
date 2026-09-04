@@ -12,6 +12,11 @@ services:
       PORT: "8080"
       EVALUATOR_INPUT_ROOT: /jobs/input
       EVALUATOR_OUTPUT_ROOT: /jobs/output
+    # Docker's embedded resolver cannot reach the NAS resolver from this bridge network.
+    # Use public resolvers only for this stateless evaluator service, keeping the change scoped.
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     volumes:
       - type: bind
         source: ./jobs/input
