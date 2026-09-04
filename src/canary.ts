@@ -30,9 +30,13 @@ export async function runCodexAuthenticationCanary(): Promise<CodexCanaryResult>
     await new Promise<void>((resolve, reject) => {
       const child = spawn("codex", args, { cwd: "/tmp", stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, HOME: "/tmp" } });
       let stderr = "";
+      const timeout = setTimeout(() => {
+        child.kill("SIGTERM");
+        reject(new Error("Codex authentication canary exceeded its 90-second timeout. Confirm NAS outbound connectivity to OpenAI and review container logs."));
+      }, 90_000);
       child.stderr.on("data", (chunk) => { stderr += String(chunk); });
       child.on("error", reject);
-      child.on("close", (code) => code === 0 ? resolve() : reject(new Error(`codex exec exited ${code}: ${stderr.slice(-2000)}`)));
+      child.on("close", (code) => { clearTimeout(timeout); code === 0 ? resolve() : reject(new Error(`codex exec exited ${code}: ${stderr.slice(-2000)}`)); });
     });
     const output = await readFile(outputFile, "utf8");
     const parsed = JSON.parse(output) as { status?: unknown };
