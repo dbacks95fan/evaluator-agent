@@ -3,5 +3,5 @@
   "type": "object",
   "additionalProperties": false,
   "required": ["status"],
-  "properties": { "status": { "const": "authenticated" } }
+  "properties": { "status": { "type": "string", "const": "authenticated" } }
 }

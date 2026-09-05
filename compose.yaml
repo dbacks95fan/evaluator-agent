@@ -12,6 +12,9 @@ services:
       PORT: "8080"
       EVALUATOR_INPUT_ROOT: /jobs/input
       EVALUATOR_OUTPUT_ROOT: /jobs/output
+      # Codex records its API-key session under HOME; /tmp is the container's writable, ephemeral storage.
+      HOME: /tmp
+      CODEX_HOME: /tmp/.codex
     # Docker's embedded resolver cannot reach the NAS resolver from this bridge network.
     # Use public resolvers only for this stateless evaluator service, keeping the change scoped.
     dns:
@@ -28,6 +31,13 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+    command:
+      # Codex requires a login session even when OPENAI_API_KEY is already available to the process.
+      - sh
+      - -ec
+      - |
+        printenv OPENAI_API_KEY | codex login --with-api-key
+        exec node dist/service.js
     security_opt:
       - no-new-privileges:true
     cap_drop:
