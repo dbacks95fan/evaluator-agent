@@ -9,3 +9,5 @@ The redeployed container remains healthy, but its Docker resolver still returns 
 The NAS firewall required an explicit return for the evaluator Docker subnet before DNS could leave the bridge. A later direct Codex run reached OpenAI but exposed a separate image defect: the runtime image lacked the operating system CA certificate bundle required by Codex's native TLS client.
 
 The current deployment test reached the authenticated OpenAI endpoint after the firewall, TLS, and entropy fixes. Its remaining failure identified two evaluator defects: Codex requires an explicit API-key login session rather than only the `OPENAI_API_KEY` environment variable, and the canary response schema omitted the required string type. Compose now creates the temporary login session at container startup, and the schema has a regression test.
+
+The first startup-authentication deployment exposed a Codex CLI requirement that `CODEX_HOME` already exist. Because the evaluator uses an empty tmpfs for ephemeral credentials, the startup command now creates that directory before logging in; the configuration test covers this condition.
