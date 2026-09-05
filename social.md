@@ -13,3 +13,5 @@ The current deployment test reached the authenticated OpenAI endpoint after the 
 The first startup-authentication deployment exposed a Codex CLI requirement that `CODEX_HOME` already exist. Because the evaluator uses an empty tmpfs for ephemeral credentials, the startup command now creates that directory before logging in; the configuration test covers this condition.
 
 Synology's Docker Compose also expands a single dollar sign in command text before the container starts. The evaluator command now escapes `CODEX_HOME` with `$$`, preserving the intended environment-variable expansion inside the container shell.
+
+The final NAS deployment started successfully: its health endpoint returned HTTP 200 and Codex completed API-key login at startup. The live canary reached OpenAI but the API organization rejected it because no billing credits remain. Evaluation work is blocked only until API credits are added; this is not a NAS connectivity or authentication failure.
