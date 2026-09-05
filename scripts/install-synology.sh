@@ -11,7 +11,7 @@ test -f "$secrets" || { echo "Missing evaluator secrets file: $secrets" >&2; exi
 image=$(sed -n 's/.*"image": "\([^"]*\)".*/\1/p' "$package_dir/manifest.json")
 test -n "$image" || { echo "Missing image name in deployment manifest" >&2; exit 1; }
 
-mkdir -p "$target/jobs/input" "$target/jobs/output"
+mkdir -p "$target"
 cp "$package_dir/compose.yaml" "$target/docker-compose.yaml"
 ln -sfn "$secrets" "$target/.runtime.env"
 printf 'EVALUATOR_IMAGE=%s\n' "$image" > "$target/.env"

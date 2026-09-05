@@ -1,18 +1,21 @@
+// ABOUTME: Exposes authenticated, stateless evaluator and deployment-test HTTP endpoints.
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
-import { access, mkdir, writeFile } from "node:fs/promises";
+import { access } from "node:fs/promises";
 import { createServer, type ServerResponse } from "node:http";
 import { resolve, sep } from "node:path";
 import { runCodexAuthenticationCanary } from "./canary.js";
+import { checkoutEvaluationRevision } from "./gitCheckout.js";
 import { errorMessage, log } from "./log.js";
 
 const port = Number(process.env.PORT ?? "8080");
 const token = process.env.EVALUATOR_API_TOKEN;
-const inputRoot = resolve(process.env.EVALUATOR_INPUT_ROOT ?? "/jobs/input");
-const outputRoot = resolve(process.env.EVALUATOR_OUTPUT_ROOT ?? "/jobs/output");
+const allowedRepositoryUrl = process.env.EVALUATOR_ALLOWED_REPOSITORY_URL;
 if (!token) throw new Error("EVALUATOR_API_TOKEN is required");
+if (!allowedRepositoryUrl) throw new Error("EVALUATOR_ALLOWED_REPOSITORY_URL is required");
+const configuredRepositoryUrl: string = allowedRepositoryUrl;
 
-interface EvaluationRequest { workItem: string; intentPath: string; contractPath: string; evidencePath: string; repoPath: string; resultPath?: string; }
+interface EvaluationRequest { workItem: string; repositoryUrl: string; revision: string; intentPath: string; contractPath: string; evidencePath: string; }
 interface DeploymentTestState { id: string; name: string; how: string; status: "not_run" | "running" | "pass" | "fail"; startedAt?: string; finishedAt?: string; durationMs?: number; message: string; }
 
 let deploymentTest: DeploymentTestState = {
@@ -40,25 +43,26 @@ function dashboard(): string {
 }
 
 async function review(job: EvaluationRequest, requestId: string): Promise<{ statusCode: number; output: string }> {
-  if (!job.workItem || !job.intentPath || !job.contractPath || !job.evidencePath || !job.repoPath) throw new Error("workItem, intentPath, contractPath, evidencePath, and repoPath are required");
-  const intent = scopedPath(inputRoot, job.intentPath);
-  const contract = scopedPath(inputRoot, job.contractPath);
-  const evidence = scopedPath(inputRoot, job.evidencePath);
-  const repo = scopedPath(inputRoot, job.repoPath);
-  await Promise.all([access(intent), access(contract), access(evidence), access(repo)]);
+  if (!job.workItem || !job.repositoryUrl || !job.revision || !job.intentPath || !job.contractPath || !job.evidencePath) throw new Error("workItem, repositoryUrl, revision, intentPath, contractPath, and evidencePath are required");
+  const checkout = await checkoutEvaluationRevision({ ...job, allowedRepositoryUrl: configuredRepositoryUrl });
+  await Promise.all([access(checkout.intentPath), access(checkout.contractPath), access(checkout.evidencePath), access(checkout.repositoryPath)]);
   const started = Date.now();
-  log("info", "evaluation.started", "Evaluator accepted an authenticated evaluation request.", { requestId, workItem: job.workItem });
-  const output = await new Promise<{ statusCode: number; output: string }>((resolvePromise, reject) => {
-    const child = spawn("node", ["/app/dist/cli.js", "review", "--intent", intent, "--contract", contract, "--evidence", evidence, "--repo", repo], { stdio: ["ignore", "pipe", "pipe"] });
-    let stdout = ""; let stderr = "";
-    child.stdout.on("data", (data) => { stdout += String(data); });
-    child.stderr.on("data", (data) => { stderr += String(data); });
-    child.on("error", reject);
-    child.on("close", (code) => resolvePromise({ statusCode: code ?? 1, output: stdout || stderr }));
-  });
-  if (job.resultPath) { const result = scopedPath(outputRoot, job.resultPath); await mkdir(resolve(result, ".."), { recursive: true }); await writeFile(result, output.output, "utf8"); }
-  log(output.statusCode === 0 ? "info" : "warn", "evaluation.completed", "Evaluator finished an evaluation request.", { requestId, workItem: job.workItem, exitCode: output.statusCode, durationMs: Date.now() - started });
-  return output;
+  try {
+    log("info", "evaluation.started", "Evaluator checked out the requested Git revision for an authenticated evaluation request.", { requestId, workItem: job.workItem, revision: job.revision });
+    const output = await new Promise<{ statusCode: number; output: string }>((resolvePromise, reject) => {
+      const child = spawn("node", ["/app/dist/cli.js", "review", "--intent", checkout.intentPath, "--contract", checkout.contractPath, "--evidence", checkout.evidencePath, "--repo", checkout.repositoryPath], { stdio: ["ignore", "pipe", "pipe"] });
+      let stdout = ""; let stderr = "";
+      child.stdout.on("data", (data) => { stdout += String(data); });
+      child.stderr.on("data", (data) => { stderr += String(data); });
+      child.on("error", reject);
+      child.on("close", (code) => resolvePromise({ statusCode: code ?? 1, output: stdout || stderr }));
+    });
+    log(output.statusCode === 0 ? "info" : "warn", "evaluation.completed", "Evaluator finished an evaluation request.", { requestId, workItem: job.workItem, exitCode: output.statusCode, durationMs: Date.now() - started });
+    return output;
+  } finally {
+    await checkout.cleanup();
+    log("info", "evaluation.cleanup", "Evaluator removed the request-scoped Git checkout.", { requestId, workItem: job.workItem });
+  }
 }
 
 async function runDeploymentTest(): Promise<DeploymentTestState> {
@@ -95,4 +99,4 @@ const server = createServer(async (request, response) => {
     const message = errorMessage(error); log("error", "evaluation.failed", "Evaluator could not complete the evaluation request.", { requestId, error: message }); return json(response, 400, { status: "error", error: message });
   }
 });
-server.listen(port, "0.0.0.0", () => log("info", "service.started", "Evaluator service is listening.", { port, inputRoot, outputRoot }));
+server.listen(port, "0.0.0.0", () => log("info", "service.started", "Evaluator service is listening.", { port, configuredRepositoryUrl }));

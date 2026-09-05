@@ -10,8 +10,6 @@ services:
       - ./.runtime.env
     environment:
       PORT: "8080"
-      EVALUATOR_INPUT_ROOT: /jobs/input
-      EVALUATOR_OUTPUT_ROOT: /jobs/output
       # Codex records its API-key session under HOME; /tmp is the container's writable, ephemeral storage.
       HOME: /tmp
       CODEX_HOME: /tmp/.codex
@@ -20,14 +18,6 @@ services:
     dns:
       - 1.1.1.1
       - 8.8.8.8
-    volumes:
-      - type: bind
-        source: ./jobs/input
-        target: /jobs/input
-        read_only: true
-      - type: bind
-        source: ./jobs/output
-        target: /jobs/output
     read_only: true
     tmpfs:
       - /tmp

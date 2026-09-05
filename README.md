@@ -18,9 +18,9 @@ Work Contract -> Coding Agent -> deterministic validation -> Evaluator Agent (Co
 
 - The approved Work Contract is authoritative and immutable for an evaluation run.
 - The Coding Agent evidence package is evidence, not proof.
-- The candidate repository/worktree is inspected independently in a read-only Codex sandbox.
+- The candidate repository is checked out from an immutable Git commit into request-scoped temporary storage, then inspected independently in a read-only Codex sandbox.
 - The Evaluator has no Trello integration and no Claude dependency.
-- The Orchestrator owns workflow state and supplies the contract, evidence, and candidate worktree.
+- The Orchestrator owns workflow state and supplies the repository URL, commit SHA, and repository-relative contract, evidence, and intent paths.
 - A contract hash supplied by the Coding Agent must match the exact contract file being evaluated.
 - Only `candidate_complete` Coding Agent runs are eligible for evaluation.
 
@@ -36,13 +36,20 @@ It returns one of three outcomes:
 
 A `pass` is invalid unless every acceptance criterion has status `pass`.
 
-## Inputs
+## Remote evaluation inputs
 
 ```text
---contract <file>   Approved Work Contract YAML or JSON
---evidence <file>   Coding Agent Evidence Package JSON
---repo <path>       Candidate repository/worktree
+repositoryUrl       Allowed HTTPS Git remote for the candidate
+revision            Immutable 40-character Git commit SHA
+intentPath          Repository-relative canonical intent path
+contractPath        Repository-relative approved Work Contract path
+evidencePath        Repository-relative Coding Agent Evidence path
 ```
+
+The evaluator clones only `EVALUATOR_ALLOWED_REPOSITORY_URL`, checks out the
+requested commit into `/tmp`, reads the three artifact paths from that checkout,
+and removes the checkout after the request completes or fails. The container
+does not retain a repository, contract, evidence, or evaluation result.
 
 ## Output contract
 
@@ -87,6 +94,18 @@ The Synology installer performs two checks before reporting deployment success:
 The terminal report names the test, explains its method, and reports `RUN`, `PASS`, or `FAIL`. A browser-readable, in-memory status view is available at `http://<nas-lan-ip>:8080/`. The view resets when the stateless container restarts.
 
 Container logs are structured JSON lines. Each includes a timestamp, severity, event name, and correlation ID where applicable. The service redacts recognizable OpenAI keys and bearer credentials from logged errors.
+
+Set the following in the external NAS runtime environment:
+
+```text
+EVALUATOR_API_TOKEN=<shared orchestrator-to-evaluator bearer token>
+OPENAI_API_KEY=<Codex API key>
+EVALUATOR_ALLOWED_REPOSITORY_URL=https://github.com/<owner>/<repository>.git
+```
+
+If the candidate repository is private, configure a read-only GitHub credential
+in the NAS runtime environment before running an evaluation. Do not add that
+credential to the image, compose file, repository, Trello card, or logs.
 
 ## Usage
 
