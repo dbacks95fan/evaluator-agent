@@ -36,7 +36,7 @@ services:
       - sh
       - -ec
       - |
-        mkdir -p "$CODEX_HOME"
+        mkdir -p "$$CODEX_HOME"
         printenv OPENAI_API_KEY | codex login --with-api-key
         exec node dist/service.js
     security_opt:

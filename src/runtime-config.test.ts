@@ -14,7 +14,7 @@ test("starts the evaluator with a temporary Codex API-key session", async () => 
   const command = Array.isArray(compose.services.evaluator.command) ? compose.services.evaluator.command.join(" ") : compose.services.evaluator.command ?? "";
 
   assert.equal(compose.services.evaluator.environment?.HOME, "/tmp");
-  assert.match(command, /mkdir -p "\$CODEX_HOME"/);
+  assert.match(command, /mkdir -p "\$\$CODEX_HOME"/);
   assert.match(command, /codex login --with-api-key/);
 });
 

@@ -11,3 +11,5 @@ The NAS firewall required an explicit return for the evaluator Docker subnet bef
 The current deployment test reached the authenticated OpenAI endpoint after the firewall, TLS, and entropy fixes. Its remaining failure identified two evaluator defects: Codex requires an explicit API-key login session rather than only the `OPENAI_API_KEY` environment variable, and the canary response schema omitted the required string type. Compose now creates the temporary login session at container startup, and the schema has a regression test.
 
 The first startup-authentication deployment exposed a Codex CLI requirement that `CODEX_HOME` already exist. Because the evaluator uses an empty tmpfs for ephemeral credentials, the startup command now creates that directory before logging in; the configuration test covers this condition.
+
+Synology's Docker Compose also expands a single dollar sign in command text before the container starts. The evaluator command now escapes `CODEX_HOME` with `$$`, preserving the intended environment-variable expansion inside the container shell.
