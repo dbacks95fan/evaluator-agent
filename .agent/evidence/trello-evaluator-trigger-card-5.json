@@ -1,0 +1,27 @@
+{
+  "workItem": "5",
+  "status": "candidate_complete",
+  "summary": "This is a controlled integration-test fixture. It provides a revision-pinned accepted intent, Work Contract, and evidence package without changing product code.",
+  "contractHash": "e34fae2802e6e1cbc7eb58bb172afc075377e5c1f287fd0143bad564341d6830",
+  "runId": "trello-evaluator-trigger-card-5",
+  "acceptanceCriteria": {
+    "AC1": "The card will be moved manually into Agent Review after this fixture is pushed.",
+    "AC2": "The evaluator preflight must validate the three committed handoff artifacts.",
+    "AC3": "The orchestrator must post the evaluator response to the card."
+  },
+  "validation": {
+    "fixture": "The committed handoff artifacts have matching work-item IDs, intent hash, and Work Contract hash.",
+    "integration": "The actual Trello and NAS evaluator interaction is intentionally executed after this fixture is pushed."
+  },
+  "filesChanged": [
+    ".agent/work/trello-evaluator-trigger-card-5/intent.md",
+    ".agent/work/trello-evaluator-trigger-card-5/contract.json",
+    ".agent/evidence/trello-evaluator-trigger-card-5.json"
+  ],
+  "assumptions": [],
+  "risks": [
+    "The fixture evaluates integration evidence rather than a product change."
+  ],
+  "escalations": [],
+  "discrepancies": []
+}

@@ -1,0 +1,46 @@
+{
+  "schema_version": 2,
+  "work_item": "5",
+  "objective": "Verify that moving the dedicated Trello User Story into Agent Review triggers one authenticated, revision-pinned remote evaluation.",
+  "acceptance_criteria": {
+    "AC1": "The orchestrator sends the remote evaluator an authenticated request when the card enters Agent Review.",
+    "AC2": "The evaluator validates this accepted intent, Work Contract, and candidate-complete evidence from the requested Git revision.",
+    "AC3": "The evaluator returns a human-readable result that the orchestrator posts to the card."
+  },
+  "intent": {
+    "path": ".agent/work/trello-evaluator-trigger-card-5/intent.md",
+    "revision": "b220ae05d370945e3e1c8b0b1e18d9d68c73b715",
+    "sha256": "703bce523b9a16795054c7b4d409862eca130175f91962bdbd8b13127821b836",
+    "reviewUrl": "https://trello.com/c/lmXd2bwY/5-test-only-verify-remote-evaluator-trigger",
+    "status": "Accepted",
+    "acceptedBy": "Sobe",
+    "acceptedAt": "2026-09-06T00:00:00Z"
+  },
+  "board": {
+    "provider": "trello",
+    "workItemId": "5",
+    "workItemUrl": "https://trello.com/c/lmXd2bwY/5-test-only-verify-remote-evaluator-trigger",
+    "workItemType": "User Story",
+    "priority": {
+      "band": "Test-only",
+      "reviewAttention": "Confirm the integration boundary.",
+      "confidence": "High",
+      "readyState": "Ready for controlled evaluation",
+      "sequencingScore": 0,
+      "rationale": "This disposable fixture exists only to prove the Trello-to-evaluator handoff."
+    }
+  },
+  "constraints": [
+    "Do not modify MenuFlow or the coding-agent repository.",
+    "Run the evaluator as a stateless, read-only service."
+  ],
+  "non_goals": [
+    "Evaluating product functionality.",
+    "Changing application code."
+  ],
+  "required_validation": [
+    "Trello webhook delivery.",
+    "Authenticated evaluator request.",
+    "Revision-pinned Git checkout cleanup."
+  ]
+}
