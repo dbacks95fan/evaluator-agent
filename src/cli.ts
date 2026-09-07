@@ -45,7 +45,7 @@ async function main(): Promise<void> {
 
   const intent = await readIntent(intentPath);
   const prompt = buildEvaluationPrompt(contract, evidence, intent, await (await import("./integrity.js")).sha256File(contractPath));
-  const raw = await runCodex(repo, prompt);
+  const raw = await runCodex(repo, prompt, Object.keys(contract.acceptance_criteria));
   const result = validateEvaluation(extractJsonObject(raw), contract);
   process.stdout.write(JSON.stringify(result, null, 2) + "\n");
 
