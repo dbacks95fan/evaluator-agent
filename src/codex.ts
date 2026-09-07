@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { codexExecutionEnvironment } from "./codex-runtime.js";
 
 export async function runCodex(repo: string, prompt: string): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), "evaluator-agent-"));
@@ -26,7 +27,7 @@ export async function runCodex(repo: string, prompt: string): Promise<string> {
     ];
 
     await new Promise<void>((resolve, reject) => {
-      const child = spawn("codex", args, { cwd: repo, stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, HOME: "/tmp" } });
+      const child = spawn("codex", args, { cwd: repo, stdio: ["ignore", "pipe", "pipe"], env: codexExecutionEnvironment() });
       let stderr = "";
       child.stderr.on("data", (chunk) => { stderr += String(chunk); });
       child.on("error", reject);
