@@ -3,3 +3,8 @@
 export function codexExecutionEnvironment(environment: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
   return { ...environment };
 }
+
+export function codexFailureMessage(exitCode: number, stdout: string, stderr: string): string {
+  const diagnostic = [stderr.trim(), stdout.trim()].filter(Boolean).join("\n").slice(-4000);
+  return diagnostic ? `codex exec exited ${exitCode}: ${diagnostic}` : `codex exec exited ${exitCode} without a diagnostic message`;
+}
