@@ -75,7 +75,7 @@ Exit codes:
 
 ## Installation and verification
 
-Requires Node.js 20+ and the OpenAI Codex CLI installed and authenticated.
+Requires Node.js 22+ and the OpenAI Codex CLI installed and authenticated.
 
 ```bash
 npm install
