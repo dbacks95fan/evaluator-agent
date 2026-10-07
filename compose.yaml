@@ -10,9 +10,9 @@ services:
       - ./.runtime.env
     environment:
       PORT: "8080"
-      # Codex records its API-key session under HOME; /tmp is the container's writable, ephemeral storage.
-      HOME: /tmp
-      CODEX_HOME: /tmp/.codex
+      # Codex rejects helper binaries under /tmp, so its stateless session lives on a dedicated writable tmpfs mount.
+      HOME: /home/evaluator
+      CODEX_HOME: /home/evaluator/.codex
     # Docker's embedded resolver cannot reach the NAS resolver from this bridge network.
     # Use public resolvers only for this stateless evaluator service, keeping the change scoped.
     dns:
@@ -21,6 +21,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /home/evaluator/.codex:uid=10001,gid=10001,mode=0700
     command:
       # Codex requires a login session even when OPENAI_API_KEY is already available to the process.
       - sh
