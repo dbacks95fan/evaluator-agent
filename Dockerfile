@@ -1,4 +1,4 @@
-FROM node:20-bookworm-slim AS build
+FROM node:24.19.0-bookworm-slim AS build
 WORKDIR /app
 RUN apt-get update \
   && apt-get install --no-install-recommends -y git \
@@ -11,7 +11,7 @@ COPY src ./src
 COPY schemas ./schemas
 RUN npm run build && npm prune --omit=dev && npm install --global @openai/codex
 
-FROM node:20-bookworm-slim
+FROM node:24.19.0-bookworm-slim
 WORKDIR /app
 # Codex's native TLS client relies on the operating system trust store, not Node's bundled CAs.
 RUN apt-get update \

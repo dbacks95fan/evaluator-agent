@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { codexExecutionEnvironment } from "./codex-runtime.js";
 import { errorMessage } from "./log.js";
 
 export interface CodexCanaryResult {
@@ -28,7 +29,7 @@ export async function runCodexAuthenticationCanary(): Promise<CodexCanaryResult>
   try {
     const args = ["exec", "--ephemeral", "--sandbox", "read-only", "--skip-git-repo-check", "--output-schema", outputSchema, "--output-last-message", outputFile, "-C", "/tmp", "Return exactly this JSON object: {\"status\":\"authenticated\"}. Do not access files or run commands."];
     await new Promise<void>((resolve, reject) => {
-      const child = spawn("codex", args, { cwd: "/tmp", stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, HOME: "/tmp" } });
+      const child = spawn("codex", args, { cwd: "/tmp", stdio: ["ignore", "pipe", "pipe"], env: codexExecutionEnvironment() });
       let stderr = "";
       const timeout = setTimeout(() => {
         child.kill("SIGTERM");

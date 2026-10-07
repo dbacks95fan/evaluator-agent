@@ -10,13 +10,13 @@ import { checkoutEvaluationRevision } from "./gitCheckout.js";
 test("checks out the requested immutable revision and removes the temporary repository", async () => {
   const source = await mkdtemp(join(tmpdir(), "evaluator-source-"));
   try {
-    execFileSync("git", ["init"], { cwd: source });
+    execFileSync("git", ["-c", "init.defaultBranch=main", "init"], { cwd: source });
     execFileSync("git", ["config", "user.email", "test@example.invalid"], { cwd: source });
     execFileSync("git", ["config", "user.name", "Evaluator Test"], { cwd: source });
     await writeFile(join(source, "intent.md"), "# Accepted intent\n", "utf8");
     await writeFile(join(source, "contract.yaml"), "schema_version: 2\n", "utf8");
     await writeFile(join(source, "evidence.json"), "{}\n", "utf8");
-    execFileSync("git", ["add", "."], { cwd: source });
+    execFileSync("git", ["-c", "core.autocrlf=false", "add", "."], { cwd: source });
     execFileSync("git", ["commit", "-m", "fixture"], { cwd: source });
     const revision = execFileSync("git", ["rev-parse", "HEAD"], { cwd: source, encoding: "utf8" }).trim();
 
