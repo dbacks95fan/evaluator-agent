@@ -8,6 +8,8 @@ services:
       - "${EVALUATOR_HTTP_PORT:-8080}:8080"
     env_file:
       - ./.runtime.env
+    volumes:
+      - "${EVALUATOR_GITHUB_APP_PRIVATE_KEY_HOST_PATH:?Set EVALUATOR_GITHUB_APP_PRIVATE_KEY_HOST_PATH}:/run/secrets/github-app.pem:ro"
     environment:
       PORT: "8080"
       # Codex rejects helper binaries under /tmp, so its stateless session lives on a dedicated writable tmpfs mount.
