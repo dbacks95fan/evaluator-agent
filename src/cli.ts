@@ -34,18 +34,21 @@ async function main(): Promise<void> {
   const contract = await readStructuredFile<WorkContract>(contractPath);
   const evidence = await readStructuredFile<EvidencePackage>(evidencePath);
 
-  if (contract.schema_version !== 2 || !contract.work_item || !contract.objective || !contract.acceptance_criteria || !contract.intent || !contract.board) {
-    throw new Error("Invalid Work Contract v2: schema_version, work_item, objective, acceptance_criteria, intent, and board are required");
+  if (contract.schema_version !== 3 || !contract.work_item?.intent_id || !contract.intent?.sha256 || !contract.target?.repository || !Array.isArray(contract.acceptance_criteria) || !Array.isArray(contract.required_validation)) {
+    throw new Error("Invalid Work Contract v3: required work_item, intent, target, acceptance_criteria, and required_validation fields are missing");
   }
-  if (Object.keys(contract.acceptance_criteria).length === 0) {
+  if (contract.acceptance_criteria.length === 0) {
     throw new Error("Invalid Work Contract: at least one acceptance criterion is required");
+  }
+  if (evidence.schema_version !== "1.0" || evidence.status !== "candidate_complete" || !evidence.candidate?.commit_sha) {
+    throw new Error("Invalid Evidence Package: a schema_version 1.0 candidate_complete package is required");
   }
 
   await verifyHandoff(contractPath, intentPath, contract, evidence);
 
   const intent = await readIntent(intentPath);
   const prompt = buildEvaluationPrompt(contract, evidence, intent, await (await import("./integrity.js")).sha256File(contractPath));
-  const raw = await runCodex(repo, prompt, Object.keys(contract.acceptance_criteria));
+  const raw = await runCodex(repo, prompt, contract.acceptance_criteria.map((_, index) => `AC${index + 1}`));
   const result = validateEvaluation(extractJsonObject(raw), contract);
   process.stdout.write(JSON.stringify(result, null, 2) + "\n");
 

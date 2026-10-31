@@ -95,17 +95,28 @@ The terminal report names the test, explains its method, and reports `RUN`, `PAS
 
 Container logs are structured JSON lines. Each includes a timestamp, severity, event name, and correlation ID where applicable. The service redacts recognizable OpenAI keys and bearer credentials from logged errors.
 
-Set the following in the external NAS runtime environment:
+Keep Evaluator credentials in its own external runtime directory on the NAS:
+`~/.config/evaluator-agent/runtime.env`. Store the GitHub App private key at
+`~/.config/evaluator-agent/github-app.pem`, with file access limited to the
+Evaluator deployment account. The deployment mounts that key read-only into
+the container.
 
 ```text
 EVALUATOR_API_TOKEN=<shared orchestrator-to-evaluator bearer token>
 OPENAI_API_KEY=<Codex API key>
-EVALUATOR_ALLOWED_REPOSITORY_URL=https://github.com/<owner>/<repository>.git
+EVALUATOR_ALLOWED_REPOSITORY_URLS=https://github.com/<owner>/<product-repo>.git
+EVALUATOR_GITHUB_APP_ID=<GitHub App ID>
+EVALUATOR_GITHUB_APP_INSTALLATION_ID=<installation ID>
+EVALUATOR_GITHUB_APP_PRIVATE_KEY_FILE=/run/secrets/github-app.pem
 ```
 
-If the candidate repository is private, configure a read-only GitHub credential
-in the NAS runtime environment before running an evaluation. Do not add that
-credential to the image, compose file, repository, Trello card, or logs.
+The GitHub App must have Contents read and write access only to product
+repositories that Evaluator is allowed to inspect. Each short-lived installation
+token is scoped to the current repository. Evaluator uses a read-only token to fetch
+the candidate and mints a separate write token only to publish
+`.agent/work/<workItem>/evaluation-package/evaluation.json`. It cannot publish
+to the default branch. Do not add credentials to the image, repository, Trello
+card, or logs.
 
 ## Usage
 

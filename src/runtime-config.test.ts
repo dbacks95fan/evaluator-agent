@@ -9,13 +9,14 @@ import { parse } from "yaml";
 const composePath = fileURLToPath(new URL("../compose.yaml", import.meta.url));
 const canarySchemaPath = fileURLToPath(new URL("../schemas/codex-auth-canary.schema.json", import.meta.url));
 
-test("starts the evaluator with a stateless Codex home outside the temporary directory", async () => {
-  const compose = parse(await readFile(composePath, "utf8")) as { services: { evaluator: { command?: string | string[]; environment?: Record<string, string>; tmpfs?: string[] } } };
+test("starts the evaluator with a stateless Codex home and read-only App key mount", async () => {
+  const compose = parse(await readFile(composePath, "utf8")) as { services: { evaluator: { command?: string | string[]; environment?: Record<string, string>; tmpfs?: string[]; volumes?: string[] } } };
   const command = Array.isArray(compose.services.evaluator.command) ? compose.services.evaluator.command.join(" ") : compose.services.evaluator.command ?? "";
 
   assert.equal(compose.services.evaluator.environment?.HOME, "/home/evaluator");
   assert.equal(compose.services.evaluator.environment?.CODEX_HOME, "/home/evaluator/.codex");
   assert.ok(compose.services.evaluator.tmpfs?.includes("/home/evaluator/.codex:uid=10001,gid=10001,mode=0700"));
+  assert.ok(compose.services.evaluator.volumes?.some((volume) => volume.includes("/run/secrets/github-app.pem:ro")));
   assert.match(command, /mkdir -p "\$\$CODEX_HOME"/);
   assert.match(command, /codex login --with-api-key/);
 });

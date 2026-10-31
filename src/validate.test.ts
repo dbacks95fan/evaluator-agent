@@ -4,17 +4,24 @@ import { validateEvaluation } from "./validate.js";
 import type { WorkContract } from "./types.js";
 
 const contract: WorkContract = {
-  schema_version: 2,
-  work_item: "TEST-1",
-  objective: "Prove validation behavior",
-  acceptance_criteria: { AC1: "Required behavior works" },
-  intent: { path: ".agent/work/TEST-1/intent.md", revision: "abc123", sha256: "intent-hash", reviewUrl: "https://example.test/intent", status: "Accepted", acceptedBy: "Test User", acceptedAt: "2026-09-02T00:00:00Z" },
-  board: { provider: "trello", workItemId: "TEST-1", workItemUrl: "https://trello.test/TEST-1", workItemType: "User Story" },
+  schema_version: 3,
+  work_item: { product_id: "TEST", intent_id: "TEST-1", intent_version: 1, trello_card_id: "card-1" },
+  intent: { repository: "https://github.com/example/backlog", commit_sha: "a".repeat(40), path: "intents/TEST-1/intent.md", sha256: "intent-hash" },
+  policy_profile_id: "TEST-DEFAULT",
+  policy_profile_version: "1",
+  policy_profile: { repository: "https://github.com/example/backlog", commit_sha: "a".repeat(40), path: "profiles/default.md", sha256: "profile-hash" },
+  target: { repository: "https://github.com/example/product", commit_sha: "b".repeat(40) },
+  acceptance_criteria: ["Required behavior works"],
+  permitted_scope: { included: ["Feature"], excluded: [] },
+  required_validation: [{ name: "tests", command: "npm test" }],
+  policy_controls: [],
+  release_requirements: [],
+  observation_requirements: [],
 };
 
 function passingResult() {
   return {
-    workItem: "TEST-1",
+    workItem: contract.work_item.intent_id,
     status: "pass",
     summary: "Verified",
     acceptanceCriteria: {
@@ -24,7 +31,7 @@ function passingResult() {
     risks: [],
     scope: { status: "acceptable", unexpectedChanges: [] },
     preflight: { status: "pass", facts: ["Accepted intent verified"], inferences: [], decisionsRequired: [] },
-    traceability: { intentPath: contract.intent.path, intentRevision: "abc123", intentHash: contract.intent.sha256, contractHash: "contract-hash", evidenceRunId: "run-1", boardWorkItemUrl: contract.board.workItemUrl },
+    traceability: { intentPath: contract.intent.path, intentRevision: contract.intent.commit_sha, intentHash: contract.intent.sha256, contractHash: "contract-hash", evidenceRunId: "run-1", trelloCardId: contract.work_item.trello_card_id },
     recommendation: "human_approval",
   };
 }

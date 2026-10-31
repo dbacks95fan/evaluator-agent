@@ -15,7 +15,7 @@ $target = "$RemoteUser@$NasHost"
 try {
   git -C $repo archive --format=tar.gz --output=$archive $Ref
   scp -i $SshKeyPath $archive "${target}:/tmp/evaluator-agent-deploy.tar.gz"
-  $remote = "set -eu; test -f ~/.config/agentic-sdlc/runtime.env; target=$RemotePath; staging=`"`$target.staging`"; rm -rf `"`$staging`"; mkdir -p `"`$staging/jobs/input`" `"`$staging/jobs/output`"; tar xzf /tmp/evaluator-agent-deploy.tar.gz -C `"`$staging`"; rm /tmp/evaluator-agent-deploy.tar.gz; if [ -d `"`$target`" ]; then rm -rf `"`$target`"; fi; mv `"`$staging`" `"`$target`"; cd `"`$target`"; sudo /usr/local/bin/docker-compose up -d --build; curl --fail http://localhost:$Port/health"
+  $remote = "set -eu; test -f ~/.config/evaluator-agent/runtime.env; test -f ~/.config/evaluator-agent/github-app.pem; target=$RemotePath; staging=`"`$target.staging`"; rm -rf `"`$staging`"; mkdir -p `"`$staging/jobs/input`" `"`$staging/jobs/output`"; tar xzf /tmp/evaluator-agent-deploy.tar.gz -C `"`$staging`"; rm /tmp/evaluator-agent-deploy.tar.gz; if [ -d `"`$target`" ]; then rm -rf `"`$target`"; fi; mv `"`$staging`" `"`$target`"; ln -sfn `"`$HOME/.config/evaluator-agent/runtime.env`" `"`$target/.runtime.env`"; printf 'EVALUATOR_GITHUB_APP_PRIVATE_KEY_HOST_PATH=%s/github-app.pem\n' `"`$HOME/.config/evaluator-agent`" > `"`$target/.env`"; cd `"`$target`"; sudo /usr/local/bin/docker-compose up -d --build; curl --fail http://localhost:$Port/health"
   ssh -i $SshKeyPath $target $remote
 } finally {
   Remove-Item -LiteralPath $archive -Force -ErrorAction SilentlyContinue

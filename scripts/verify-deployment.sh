@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-secrets=${EVALUATOR_SECRETS_FILE:-"$HOME/.config/agentic-sdlc/runtime.env"}
+secrets=${EVALUATOR_SECRETS_FILE:-"$HOME/.config/evaluator-agent/runtime.env"}
 port=${EVALUATOR_HTTP_PORT:-8080}
 base_url="http://127.0.0.1:$port"
 
@@ -18,6 +18,10 @@ line
 test -f "$secrets" || fail "Runtime secrets file was not found at $secrets."
 token=$(sed -n 's/^EVALUATOR_API_TOKEN=//p' "$secrets" | tail -n 1)
 test -n "$token" || fail "EVALUATOR_API_TOKEN is missing from the runtime secrets file."
+for required_setting in EVALUATOR_GITHUB_APP_ID EVALUATOR_GITHUB_APP_INSTALLATION_ID EVALUATOR_GITHUB_APP_PRIVATE_KEY_FILE EVALUATOR_ALLOWED_REPOSITORY_URLS; do
+  grep -q "^${required_setting}=" "$secrets" || fail "$required_setting is missing from the runtime secrets file."
+done
+test -f "$HOME/.config/evaluator-agent/github-app.pem" || fail "Evaluator GitHub App private key file was not found."
 
 run "Health endpoint" "Request GET /health and require HTTP 200 with a JSON status response."
 attempt=1

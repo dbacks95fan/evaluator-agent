@@ -8,8 +8,9 @@ export function validateEvaluation(value: unknown, contract: WorkContract): Eval
   if (!value || typeof value !== "object") throw new Error("Evaluation result is not an object");
   const result = value as EvaluationResult;
 
-  if (result.workItem !== contract.work_item) {
-    throw new Error(`Evaluation workItem '${result.workItem}' does not match contract '${contract.work_item}'`);
+  const expectedWorkItem = contract.work_item.intent_id;
+  if (result.workItem !== expectedWorkItem) {
+    throw new Error(`Evaluation workItem '${result.workItem}' does not match contract '${expectedWorkItem}'`);
   }
   if (!statuses.has(result.status)) throw new Error(`Invalid evaluation status '${result.status}'`);
   if (!recommendations.has(result.recommendation)) throw new Error(`Invalid recommendation '${result.recommendation}'`);
@@ -23,7 +24,8 @@ export function validateEvaluation(value: unknown, contract: WorkContract): Eval
     throw new Error("Missing acceptanceCriteria evaluation");
   }
 
-  for (const id of Object.keys(contract.acceptance_criteria)) {
+  const criterionIds = contract.acceptance_criteria.map((_, index) => `AC${index + 1}`);
+  for (const id of criterionIds) {
     const criterion = result.acceptanceCriteria[id];
     if (!criterion) throw new Error(`Evaluator omitted acceptance criterion '${id}'`);
     if (!criterionStatuses.has(criterion.status)) {
@@ -38,7 +40,7 @@ export function validateEvaluation(value: unknown, contract: WorkContract): Eval
   }
 
   if (result.status === "pass") {
-    for (const id of Object.keys(contract.acceptance_criteria)) {
+    for (const id of criterionIds) {
       if (result.acceptanceCriteria[id].status !== "pass") {
         throw new Error(`Overall pass is invalid because acceptance criterion '${id}' did not pass`);
       }
@@ -51,7 +53,7 @@ export function validateEvaluation(value: unknown, contract: WorkContract): Eval
     throw new Error("Missing scope evaluation");
   }
   if (!result.preflight || result.preflight.status !== "pass" || !Array.isArray(result.preflight.facts) || !Array.isArray(result.preflight.inferences) || !Array.isArray(result.preflight.decisionsRequired)) throw new Error("Missing or failed preflight evaluation");
-  if (!result.traceability || result.traceability.intentPath !== contract.intent.path || result.traceability.intentHash !== contract.intent.sha256 || result.traceability.boardWorkItemUrl !== contract.board.workItemUrl) throw new Error("Evaluation traceability does not match the Work Contract");
+  if (!result.traceability || result.traceability.intentPath !== contract.intent.path || result.traceability.intentRevision !== contract.intent.commit_sha || result.traceability.intentHash !== contract.intent.sha256 || result.traceability.trelloCardId !== contract.work_item.trello_card_id) throw new Error("Evaluation traceability does not match the Work Contract");
   if (result.status === "needs_decision" && !result.decisionBrief) throw new Error("needs_decision requires a decision brief");
 
   return result;

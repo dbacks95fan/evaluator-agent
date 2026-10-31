@@ -4,7 +4,7 @@ import type { EvidencePackage, WorkContract } from "./types.js";
 export function buildEvaluationPrompt(contract: WorkContract, evidence: EvidencePackage, intent: ParsedIntent, contractHash: string): string {
   return `You are an independent software Evaluator Agent. A separate Coding Agent produced the candidate implementation in the current repository.
 
-Your job is to determine whether the candidate actually satisfies the approved Work Contract.
+Your job is to determine whether the candidate actually satisfies the accepted Work Contract v3.
 
 GOVERNANCE
 - The Work Contract is authoritative. Do not reinterpret or modify it.
@@ -21,14 +21,14 @@ GOVERNANCE
 - Use pass only when every acceptance criterion is sufficiently verified and no material blocking finding remains.
 
 REVIEW CHECKLIST
-1. Evaluate every acceptance criterion individually.
+1. Evaluate every acceptance criterion in the Work Contract individually, using IDs AC1, AC2, and so on in order.
 2. Compare the candidate against its base branch using git where useful.
 3. Inspect changed files and relevant surrounding implementation.
 4. Assess whether tests actually prove the required behavior rather than merely mirror the implementation.
 5. Check for regressions, unintended scope, architectural-constraint violations, security concerns, and unsupported evidence claims.
 6. Consider the Coding Agent's deterministic validation results, risks, assumptions, escalations, and discrepancies.
 
-APPROVED WORK CONTRACT
+ACCEPTED WORK CONTRACT V3
 ${JSON.stringify(contract, null, 2)}
 
 CODING AGENT EVIDENCE PACKAGE
@@ -39,7 +39,7 @@ ${JSON.stringify(intent, null, 2)}
 
 Return ONLY a JSON object matching this shape:
 {
-  "workItem": "string",
+  "workItem": "${contract.work_item.intent_id}",
   "status": "pass | fail | needs_decision",
   "summary": "concise evidence-based summary",
   "acceptanceCriteria": {
@@ -69,8 +69,8 @@ Return ONLY a JSON object matching this shape:
   },
   "preflight": { "status": "pass", "facts": ["..."], "inferences": [], "decisionsRequired": [] },
   "traceability": {
-    "intentPath": "${contract.intent.path}", "intentRevision": "${contract.intent.revision}", "intentHash": "${contract.intent.sha256}",
-    "contractHash": "${contractHash}", "evidenceRunId": "${evidence.runId ?? "unknown"}", "boardWorkItemUrl": "${contract.board.workItemUrl}"
+    "intentPath": "${contract.intent.path}", "intentRevision": "${contract.intent.commit_sha}", "intentHash": "${contract.intent.sha256}",
+    "contractHash": "${contractHash}", "evidenceRunId": "${evidence.candidate.commit_sha}", "trelloCardId": "${contract.work_item.trello_card_id}"
   },
   "decisionBrief": { "decisionRequired": "required only for needs_decision", "whyNow": "...", "knownFacts": ["..."], "evaluatorInferences": ["..."], "options": [{ "option": "...", "impact": "..." }], "consequenceOfNoDecision": "..." },
   "recommendation": "human_approval | return_to_coding_agent | human_decision"

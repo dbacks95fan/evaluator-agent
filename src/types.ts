@@ -2,6 +2,47 @@ export type EvaluationStatus = "pass" | "fail" | "needs_decision";
 export type CriterionStatus = "pass" | "fail" | "partial" | "not_verified";
 export type FindingSeverity = "critical" | "high" | "medium" | "low";
 
+export interface WorkItem {
+  product_id: string;
+  intent_id: string;
+  intent_version: number;
+  trello_card_id: string;
+}
+
+export interface ArtifactRef {
+  repository: string;
+  commit_sha: string;
+  path: string;
+  sha256: string;
+}
+
+export interface CommitRef {
+  repository: string;
+  commit_sha: string;
+}
+
+export interface EvaluationFinding {
+  category: "implementation" | "specification" | "policy" | "evidence";
+  severity: "blocking" | "non_blocking";
+  summary: string;
+  artifact?: ArtifactRef;
+}
+
+export interface EvaluationFinding {
+  category: "implementation" | "specification" | "policy" | "evidence";
+  severity: "blocking" | "non_blocking";
+  summary: string;
+  artifact?: ArtifactRef;
+}
+
+export interface ValidationResult {
+  name: string;
+  outcome: "passed" | "failed" | "not_run" | "not_applicable";
+  observed_at: string;
+  summary: string;
+  evidence?: ArtifactRef;
+}
+
 export interface IntentReference {
   path: string;
   revision: string;
@@ -30,35 +71,31 @@ export interface BoardReference {
 }
 
 export interface WorkContract {
-  schema_version: 2;
-  work_item: string;
-  objective: string;
-  acceptance_criteria: Record<string, string>;
-  intent: IntentReference;
-  board: BoardReference;
-  constraints?: string[];
-  architectural_constraints?: string[];
-  known_dependencies?: string[];
-  non_goals?: string[];
-  required_validation?: string[];
-  escalation_conditions?: string[];
+  schema_version: 3;
+  work_item: WorkItem;
+  intent: ArtifactRef;
+  policy_profile_id: string;
+  policy_profile_version: string;
+  policy_profile: ArtifactRef;
+  target: CommitRef;
+  acceptance_criteria: string[];
+  permitted_scope: { included: string[]; excluded: string[] };
+  required_validation: { name: string; command: string }[];
+  policy_controls: { control_id: string; required_action: string; evidence_expected: string }[];
+  release_requirements: string[];
+  observation_requirements: string[];
 }
 
 export interface EvidencePackage {
-  workItem: string;
-  status: string;
-  summary: string;
-  contractHash?: string;
-  runId?: string;
-  acceptanceCriteria?: Record<string, unknown>;
-  validation?: Record<string, unknown>;
-  filesChanged?: string[];
-  assumptions?: string[];
-  risks?: string[];
-  escalations?: unknown[];
-  discrepancies?: string[];
-  worktree?: { path?: string; branch?: string; baseBranch?: string };
-  [key: string]: unknown;
+  schema_version: "1.0";
+  work_item: WorkItem;
+  input_artifacts: ArtifactRef[];
+  candidate: CommitRef;
+  changed_paths: string[];
+  validation: ValidationResult[];
+  policy_control_evidence: { control_id: string; outcome: "addressed" | "not_applicable" | "needs_decision"; summary: string; evidence?: ArtifactRef }[];
+  status: "candidate_complete" | "needs_decision" | "blocked" | "failed";
+  summary?: string;
 }
 
 export interface CriterionEvaluation {
@@ -102,7 +139,7 @@ export interface EvaluationResult {
     intentHash: string;
     contractHash: string;
     evidenceRunId: string;
-    boardWorkItemUrl: string;
+    trelloCardId: string;
   };
   decisionBrief?: {
     decisionRequired: string;
