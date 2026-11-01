@@ -1,58 +1,107 @@
-// ABOUTME: Creates repository-scoped GitHub App installation tokens for Evaluator Git operations.
-import { createPrivateKey, sign } from "node:crypto";
-import { readFile } from "node:fs/promises";
+// Copyright (c) 2026 DPSystems, LLC.
+// ABOUTME: Mints short-lived GitHub App installation tokens, each limited to one repository and one access level.
+// ABOUTME: The app's private key never leaves this process; Git only ever sees a minted token.
+import { sign } from "node:crypto";
+import type { GitAccess, GitCredentials } from "./git.js";
 
-export interface GitHubAppTokenRequest {
+export interface GitHubAppSettings {
   appId: string;
   installationId: string;
-  privateKeyFile: string;
-  repositoryUrl: string;
-  contentsPermission: "read" | "write";
-  fetchFn?: typeof fetch;
-  now?: () => number;
+  privateKey: string;
+  apiUrl: string;
 }
 
-function base64Url(value: string | Buffer): string {
-  return Buffer.from(value).toString("base64url");
+interface MintedToken {
+  token: string;
+  expiresAt: number;
 }
 
-function githubRepository(repositoryUrl: string): { owner: string; name: string } {
-  const match = repositoryUrl.replace(/\.git$/i, "").match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)$/i);
-  if (!match) throw new Error("GitHub App access requires an HTTPS GitHub repository URL.");
-  return { owner: match[1], name: match[2] };
+/**
+ * Tokens live one hour. Re-mint when less than this remains so a clone or push
+ * that starts on a cached token cannot outlive it.
+ */
+const REFRESH_MARGIN_MS = 10 * 60_000;
+
+function base64url(input: Buffer | string): string {
+  return Buffer.from(input).toString("base64url");
 }
 
-function appJwt(appId: string, privateKey: string, now: number): string {
-  const issuedAt = Math.floor(now / 1000) - 60;
-  const header = base64Url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
-  const payload = base64Url(JSON.stringify({ iss: appId, iat: issuedAt, exp: issuedAt + 540 }));
-  const unsigned = `${header}.${payload}`;
-  const signature = sign("RSA-SHA256", Buffer.from(unsigned), createPrivateKey(privateKey));
-  return `${unsigned}.${base64Url(signature)}`;
+/** The app's own short-lived JWT, used only to ask GitHub for installation tokens. */
+export function appJwt(appId: string, privateKey: string, nowMs: number): string {
+  const now = Math.floor(nowMs / 1000);
+  // GitHub accepts at most ten minutes; backdating iat absorbs clock drift between the NAS and GitHub.
+  const header = base64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
+  const payload = base64url(JSON.stringify({ iat: now - 60, exp: now + 540, iss: appId }));
+  const signature = sign("sha256", Buffer.from(`${header}.${payload}`), privateKey);
+  return `${header}.${payload}.${base64url(signature)}`;
 }
 
-/** Mint a short-lived token scoped to one repository and the requested Contents permission. */
-export async function createGitHubAppInstallationToken(request: GitHubAppTokenRequest): Promise<string> {
-  if (!request.appId || !request.installationId || !request.privateKeyFile) {
-    throw new Error("Evaluator GitHub App ID, installation ID, and private-key file are required.");
+/** owner and name of a github.com HTTPS remote; null for anything else, such as local test remotes. */
+export function githubRepository(url: string): { owner: string; name: string } | null {
+  const match = /^https:\/\/github\.com\/([^/\s]+)\/([^/\s]+?)(?:\.git)?\/?$/i.exec(url.trim());
+  return match ? { owner: match[1], name: match[2] } : null;
+}
+
+export class GitHubAppCredentials implements GitCredentials {
+  private readonly cache = new Map<string, MintedToken>();
+
+  constructor(
+    private readonly settings: GitHubAppSettings,
+    private readonly fetchImpl: typeof fetch = fetch,
+    private readonly now: () => number = Date.now,
+  ) {}
+
+  async tokenFor(url: string, access: GitAccess): Promise<string | undefined> {
+    const repo = githubRepository(url);
+    if (!repo) return undefined;
+    const fullName = `${repo.owner}/${repo.name}`.toLowerCase();
+    const key = `${access}:${fullName}`;
+    const cached = this.cache.get(key);
+    if (cached && cached.expiresAt - this.now() > REFRESH_MARGIN_MS) return cached.token;
+    const minted = await this.mint(repo.name, fullName, access);
+    this.cache.set(key, minted);
+    return minted.token;
   }
-  const { name } = githubRepository(request.repositoryUrl);
-  const privateKey = await readFile(request.privateKeyFile, "utf8");
-  const jwt = appJwt(request.appId, privateKey, (request.now ?? Date.now)());
-  const fetchFn = request.fetchFn ?? fetch;
-  const response = await fetchFn(`https://api.github.com/app/installations/${encodeURIComponent(request.installationId)}/access_tokens`, {
-    method: "POST",
-    headers: {
-      Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${jwt}`,
-      "Content-Type": "application/json",
-      "User-Agent": "agentic-sdlc-evaluator",
-      "X-GitHub-Api-Version": "2022-11-28",
-    },
-      body: JSON.stringify({ repositories: [name], permissions: { contents: request.contentsPermission } }),
-  });
-  if (!response.ok) throw new Error(`GitHub App could not mint an installation token (HTTP ${response.status}).`);
-  const body = await response.json() as { token?: unknown };
-  if (typeof body.token !== "string" || !body.token) throw new Error("GitHub App token response did not contain an installation token.");
-  return body.token;
+
+  private async mint(name: string, fullName: string, access: GitAccess): Promise<MintedToken> {
+    const { appId, installationId, privateKey, apiUrl } = this.settings;
+    const response = await this.fetchImpl(
+      `${apiUrl.replace(/\/+$/, "")}/app/installations/${installationId}/access_tokens`,
+      {
+        method: "POST",
+        headers: {
+          accept: "application/vnd.github+json",
+          authorization: `Bearer ${appJwt(appId, privateKey, this.now())}`,
+          "content-type": "application/json",
+          "user-agent": "evaluator-agent",
+          "x-github-api-version": "2022-11-28",
+        },
+        body: JSON.stringify({ repositories: [name], permissions: { contents: access } }),
+      },
+    );
+    if (response.status !== 201) {
+      const detail = (await response.text()).slice(0, 300);
+      throw new Error(`GitHub refused a ${access} token for ${fullName} (HTTP ${response.status}): ${detail}`);
+    }
+
+    const body = (await response.json()) as {
+      token?: string;
+      expires_at?: string;
+      permissions?: { contents?: string };
+      repositories?: { full_name?: string }[];
+    };
+    const expiresAt = Date.parse(body.expires_at ?? "");
+    if (!body.token || Number.isNaN(expiresAt)) {
+      throw new Error(`GitHub's token response for ${fullName} had no token or expiry.`);
+    }
+    // Use nothing broader than requested, whatever GitHub returned.
+    const granted = (body.repositories ?? []).map((r) => (r.full_name ?? "").toLowerCase());
+    if (body.permissions?.contents !== access || granted.length !== 1 || granted[0] !== fullName) {
+      throw new Error(
+        `GitHub issued a token for ${fullName} with contents=${body.permissions?.contents} on ` +
+          `[${granted.join(", ")}], not ${access} on that repository alone; it was not used.`,
+      );
+    }
+    return { token: body.token, expiresAt };
+  }
 }
