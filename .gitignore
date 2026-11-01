@@ -5,3 +5,4 @@ dist/
 *.log
 .agent/
 deployment-packages/
+testResults.xml

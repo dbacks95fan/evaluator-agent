@@ -1,0 +1,241 @@
+# Copyright (c) 2026 DPSystems, LLC.
+# ABOUTME: Pester tests for the NAS deployment scripts: package layout, remote command, secrets checks,
+# ABOUTME: and agreement between the compose file, the installer, and the /volume2 rule.
+
+BeforeAll {
+    $scripts = Split-Path -Parent $PSScriptRoot
+    $script:repo = Split-Path -Parent $scripts
+    . (Join-Path $scripts 'deploy-synology.ps1')
+    . (Join-Path $scripts 'set-nas-secrets.ps1')
+}
+
+Describe 'deploy-synology' {
+    It 'tags the image with the first 12 characters of the commit' {
+        Get-ImageTag -Commit ('a' * 40) | Should -Be ('evaluator-agent:' + ('a' * 12))
+    }
+
+    It 'stages the package on /volume2 and never in the RAM-backed /tmp' {
+        $command = Get-RemoteInstallCommand -PackageName 'evaluator-agent-abc'
+        $command | Should -Match '/volume2/docker/evaluator-agent-data/incoming/evaluator-agent-abc.tar.gz'
+        $command | Should -Not -Match '/tmp'
+    }
+
+    It 'builds a remote command Windows PowerShell can pass to ssh unchanged' {
+        $command = Get-RemoteInstallCommand -PackageName 'evaluator-agent-abc'
+        $command | Should -Not -Match '"'
+        $command | Should -Match '^set -eu;'
+        $command | Should -Match 'sh \S+/install-on-nas.sh'
+    }
+
+    It 'writes a manifest and LF checksums without a byte order mark' {
+        $dir = Join-Path ([System.IO.Path]::GetTempPath()) ([guid]::NewGuid())
+        New-Item -ItemType Directory -Path $dir | Out-Null
+        try {
+            [System.IO.File]::WriteAllText((Join-Path $dir 'image.tar'), 'image bytes')
+            Write-PackageManifest -Directory $dir -Image 'evaluator-agent:abc' -Commit ('b' * 40)
+            $sums = [System.IO.File]::ReadAllBytes((Join-Path $dir 'SHA256SUMS'))
+            $sums[0] | Should -Not -Be 0xEF
+            $text = [System.Text.Encoding]::UTF8.GetString($sums)
+            $text | Should -Not -Match "`r"
+            $expected = (Get-FileHash -LiteralPath (Join-Path $dir 'image.tar') -Algorithm SHA256).Hash.ToLowerInvariant()
+            $text | Should -Match "$expected  image.tar"
+            $text | Should -Match '  manifest.txt'
+            Get-Content -LiteralPath (Join-Path $dir 'manifest.txt') -Raw | Should -Match 'image=evaluator-agent:abc'
+        }
+        finally {
+            Remove-Item -LiteralPath $dir -Recurse -Force
+        }
+    }
+}
+
+Describe 'set-nas-secrets' {
+    BeforeAll {
+        function Invoke-SecretsScript {
+            # Runs the script as an operator does (-File). Output goes through files because, in
+            # Windows PowerShell 5.1, redirecting a child's stderr inside Pester raises instead.
+            param([string[]]$Arguments)
+            $script = Join-Path (Split-Path -Parent $PSScriptRoot) 'set-nas-secrets.ps1'
+            $out = [System.IO.Path]::GetTempFileName()
+            $err = [System.IO.Path]::GetTempFileName()
+            try {
+                $argumentList = @('-NoProfile', '-File', "`"$script`"") + $Arguments
+                $process = Start-Process -FilePath 'powershell' -ArgumentList $argumentList -NoNewWindow -Wait -PassThru `
+                    -RedirectStandardOutput $out -RedirectStandardError $err
+                [pscustomobject]@{ ExitCode = $process.ExitCode; Output = (Get-Content -LiteralPath $out, $err -Raw) -join "`n" }
+            }
+            finally {
+                Remove-Item -LiteralPath $out, $err -Force
+            }
+        }
+    }
+    BeforeEach {
+        $script:good = [ordered]@{
+            OPENAI_API_KEY                       = 'sk-proj-real-looking-value'
+            EVALUATOR_GITHUB_APP_ID              = '5555873'
+            EVALUATOR_GITHUB_APP_INSTALLATION_ID = '177232772'
+            EVALUATOR_API_TOKEN                  = 'x' * 40
+        }
+    }
+
+    It 'accepts a complete settings file' {
+        Test-RuntimeSetting -Values $good | Should -BeNullOrEmpty
+    }
+
+    It 'names every missing setting without showing any value' {
+        $values = [ordered]@{ EVALUATOR_API_TOKEN = 'tiny-secret-value' }
+        $problems = Test-RuntimeSetting -Values $values
+        $problems | Should -Contain 'OPENAI_API_KEY is not set'
+        $problems | Should -Contain 'EVALUATOR_GITHUB_APP_ID is not set'
+        $problems | Should -Contain 'EVALUATOR_GITHUB_APP_INSTALLATION_ID is not set'
+        $problems | Should -Contain 'EVALUATOR_API_TOKEN is shorter than 32 characters'
+        ($problems -join ' ') | Should -Not -Match 'tiny-secret-value'
+    }
+
+    It 'refuses non-numeric GitHub App IDs' {
+        $good['EVALUATOR_GITHUB_APP_ID'] = 'Iv23lighUM0vlezmbCTG'
+        Test-RuntimeSetting -Values $good | Should -Contain 'EVALUATOR_GITHUB_APP_ID must be a number'
+    }
+
+    It 'refuses the retired repository allowlist, which the manifest replaced' {
+        $good['EVALUATOR_ALLOWED_REPOSITORY_URLS'] = 'https://github.com/old/allowlist.git'
+        $problems = Test-RuntimeSetting -Values $good
+        $problems | Should -Contain 'EVALUATOR_ALLOWED_REPOSITORY_URLS is no longer used; remove it'
+        ($problems -join ' ') | Should -Not -Match 'old/allowlist'
+    }
+
+    It 'refuses the retired Codex CLI home setting' {
+        $good['CODEX_HOME'] = '/home/evaluator/.codex-secret-path'
+        $problems = Test-RuntimeSetting -Values $good
+        $problems | Should -Contain 'CODEX_HOME is no longer used; remove it'
+        ($problems -join ' ') | Should -Not -Match 'codex-secret-path'
+    }
+
+    It 'checks the GitHub App key file by path without showing its contents' {
+        $file = Join-Path ([System.IO.Path]::GetTempPath()) ([guid]::NewGuid())
+        try {
+            Test-GitHubAppKey -Values $good | Should -Match 'EVALUATOR_GITHUB_APP_PRIVATE_KEY_FILE is not set'
+
+            $good['EVALUATOR_GITHUB_APP_PRIVATE_KEY_FILE'] = $file
+            Test-GitHubAppKey -Values $good | Should -Match 'does not exist'
+
+            [System.IO.File]::WriteAllText($file, 'secret-but-not-a-key')
+            $problem = Test-GitHubAppKey -Values $good
+            $problem | Should -Match 'is not a PEM private key'
+            $problem | Should -Not -Match 'secret-but-not-a-key'
+
+            [System.IO.File]::WriteAllText($file, "-----BEGIN RSA PRIVATE KEY-----`nabc`n-----END RSA PRIVATE KEY-----`n")
+            Test-GitHubAppKey -Values $good | Should -BeNullOrEmpty
+        }
+        finally {
+            Remove-Item -LiteralPath $file -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'refuses the .env.example placeholders' {
+        $good['OPENAI_API_KEY'] = 'replace-with-an-openai-api-key'
+        Test-RuntimeSetting -Values $good | Should -Contain 'OPENAI_API_KEY is still the placeholder'
+    }
+
+    It 'refuses a /volume1 path' {
+        $good['EVALUATOR_WORK_ROOT'] = '/volume1/docker/x'
+        Test-RuntimeSetting -Values $good | Should -Contain 'EVALUATOR_WORK_ROOT points at /volume1; this service lives on /volume2'
+    }
+
+    It 'refuses an incomplete file when run as a script, without contacting the NAS' {
+        # Runs the script the way an operator does (-File), which dot-sourcing cannot exercise.
+        $file = Join-Path ([System.IO.Path]::GetTempPath()) ([guid]::NewGuid())
+        try {
+            [System.IO.File]::WriteAllText($file, "OPENAI_API_KEY=replace-with-an-openai-api-key`n")
+            $result = Invoke-SecretsScript -Arguments @('-LocalFile', "`"$file`"", '-NasHost', 'invalid.example')
+            $result.ExitCode | Should -Not -Be 0
+            $result.Output | Should -Match 'PROBLEM  OPENAI_API_KEY is still the placeholder'
+            $result.Output | Should -Match 'Nothing was sent to the NAS'
+        }
+        finally {
+            Remove-Item -LiteralPath $file -Force
+        }
+    }
+
+    It 'finds runtime.env in the workspace .config folder by default' {
+        # Every outcome depends on this PC's settings file. A complete one gets as far as ssh, which
+        # fails on the reserved invalid.example host before anything is sent.
+        $result = Invoke-SecretsScript -Arguments @('-NasHost', 'invalid.example')
+        $result.Output | Should -Not -Match 'Cannot bind argument'
+        $result.Output | Should -Match ([regex]::Escape((Join-Path (Split-Path -Parent $repo) '.config\evaluator-agent\runtime.env')))
+        $result.Output | Should -Match '(does not exist|PROBLEM|Saved|on the NAS failed)'
+    }
+
+    It 'reads NAME=value lines, skipping comments and a byte order mark' {
+        $file = Join-Path ([System.IO.Path]::GetTempPath()) ([guid]::NewGuid())
+        try {
+            [System.IO.File]::WriteAllText($file, "$([char]0xFEFF)# comment`nA=1`nB=x=y`n`n", (New-Object System.Text.UTF8Encoding $false))
+            $values = Read-EnvFile $file
+            @($values.Keys) | Should -Be @('A', 'B')
+            $values['B'] | Should -Be 'x=y'
+            ConvertTo-EnvText $values | Should -Be "A=1`nB=x=y`n"
+        }
+        finally {
+            Remove-Item -LiteralPath $file -Force
+        }
+    }
+}
+
+Describe 'deployment files agree' {
+    It 'listens on the same port in compose, its health check, and the installer' {
+        $compose = Get-Content -LiteralPath (Join-Path $repo 'compose.yaml') -Raw
+        $install = Get-Content -LiteralPath (Join-Path $repo 'scripts\install-on-nas.sh') -Raw
+        $compose | Should -Match 'PORT: "8080"'
+        $compose | Should -Match '127\.0\.0\.1:8080/health'
+        $compose | Should -Match 'network_mode: host'
+        $install | Should -Match 'EVALUATOR_PORT:-8080'
+    }
+
+    It 'requires the same secrets in the installer and the secrets script' {
+        $install = Get-Content -LiteralPath (Join-Path $repo 'scripts\install-on-nas.sh') -Raw
+        foreach ($name in $Required) { $install | Should -Match $name }
+    }
+
+    It 'never deploys to /volume1' {
+        # set-nas-secrets.ps1 is left out: it names /volume1 only to refuse it.
+        foreach ($file in 'compose.yaml', 'scripts\install-on-nas.sh', 'scripts\deploy-synology.ps1') {
+            Get-Content -LiteralPath (Join-Path $repo $file) -Raw | Should -Not -Match '/volume1' -Because $file
+        }
+    }
+
+    It 'checks secrets and the GitHub App key before loading the image' {
+        $install = Get-Content -LiteralPath (Join-Path $repo 'scripts\install-on-nas.sh') -Raw
+        $load = $install.IndexOf('docker" load')
+        $install.IndexOf('EVALUATOR_API_TOKEN; do') | Should -BeLessThan $load
+        $install.IndexOf('[ -s "$app_key" ]') | Should -BeGreaterThan 0
+        $install.IndexOf('[ -s "$app_key" ]') | Should -BeLessThan $load
+    }
+
+    It 'gives the container a read-only key at the path the service reads, from where the installer puts it' {
+        $compose = Get-Content -LiteralPath (Join-Path $repo 'compose.yaml') -Raw
+        $install = Get-Content -LiteralPath (Join-Path $repo 'scripts\install-on-nas.sh') -Raw
+        $compose | Should -Match 'EVALUATOR_GITHUB_APP_PRIVATE_KEY_FILE: /config/github-app.pem'
+        $compose | Should -Match '/secrets/github-app.pem:/config/github-app.pem:ro'
+        $install | Should -Match '-v "\$data_dir/secrets:/out"'
+        $install | Should -Match 'chown 0:0 /out/github-app.pem && chmod 400'
+    }
+
+    It 'starts as root with only SETUID and SETGID, keeping the rest of the hardening' {
+        $compose = Get-Content -LiteralPath (Join-Path $repo 'compose.yaml') -Raw
+        $compose | Should -Match 'user: "0:0"'
+        $compose | Should -Match 'read_only: true'
+        $compose | Should -Match 'no-new-privileges:true'
+        $compose | Should -Match "cap_drop:\s*\r?\n\s*- ALL"
+        $added = [regex]::Match($compose, "cap_add:\s*\r?\n((?:\s*- \w+\s*\r?\n)+)").Groups[1].Value -split '\s*- ' |
+            ForEach-Object { $_.Trim() } | Where-Object { $_ }
+        @($added | Sort-Object) | Should -Be @('SETGID', 'SETUID')
+    }
+
+    It 'uploads the key to the path the installer reads' {
+        $install = Get-Content -LiteralPath (Join-Path $repo 'scripts\install-on-nas.sh') -Raw
+        $install | Should -Match 'app_key="\$app_dir/github-app.pem"'
+        (Get-Command (Join-Path $repo 'scripts\set-nas-secrets.ps1')).Parameters['RemoteKeyFile'] | Should -Not -BeNullOrEmpty
+        $secretsScript = Get-Content -LiteralPath (Join-Path $repo 'scripts\set-nas-secrets.ps1') -Raw
+        $secretsScript | Should -Match "RemoteKeyFile = '/volume2/docker/evaluator-agent/github-app.pem'"
+        $install | Should -Match 'app_dir=\$\{EVALUATOR_APP_DIR:-/volume2/docker/evaluator-agent\}'
+    }
+}

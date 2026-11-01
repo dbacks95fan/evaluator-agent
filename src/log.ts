@@ -1,15 +1,17 @@
-type LogLevel = "info" | "warn" | "error";
+// Copyright (c) 2026 DPSystems, LLC.
+// ABOUTME: Structured, redacted JSON-line logging to stderr; stdout is reserved for CLI results.
+import { redact } from "./redact.js";
 
-function redact(value: string): string {
-  return value
-    .replace(/sk-[A-Za-z0-9_-]+/g, "[REDACTED_OPENAI_KEY]")
-    .replace(/Bearer\s+[^\s"']+/gi, "Bearer [REDACTED]");
+export type Logger = (event: string, data?: Record<string, unknown>) => void;
+
+export function createLogger(
+  secrets: string[],
+  write: (line: string) => void = (l) => process.stderr.write(`${l}\n`),
+): Logger {
+  return (event, data = {}) => {
+    const line = JSON.stringify({ ts: new Date().toISOString(), event, ...data });
+    write(redact(line, secrets));
+  };
 }
 
-export function errorMessage(error: unknown): string {
-  return redact(error instanceof Error ? error.message : String(error));
-}
-
-export function log(level: LogLevel, event: string, message: string, details: Record<string, unknown> = {}): void {
-  console.log(JSON.stringify({ timestamp: new Date().toISOString(), level, event, message, ...details }));
-}
+export const silentLogger: Logger = () => undefined;

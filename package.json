@@ -1,19 +1,23 @@
 {
   "name": "evaluator-agent",
-  "version": "0.1.0",
-  "description": "Independent Codex-based evaluator for coding-agent results.",
+  "version": "0.2.0",
+  "description": "Independent Evaluator for the Agentic SDLC Evaluation stage: consumes a StageInvocation 1.1, verifies the candidate at its exact SHA, reruns the trusted checks, reviews it with an OpenAI model, and returns a canonical StageResult and Evaluation Package.",
   "type": "module",
   "bin": {
     "evaluator-agent": "./dist/cli.js"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "dev": "tsx src/cli.ts",
-    "serve": "node dist/service.js",
-    "test": "node --import tsx --test src/*.test.ts",
-    "check": "npm run build && npm test"
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test --test-concurrency=1 \"src/**/*.test.ts\"",
+    "check": "npm run typecheck && npm test && npm run build",
+    "check:schema-sync": "node scripts/check-schema-sync.mjs",
+    "test:deploy": "powershell -NoProfile -Command \"Import-Module Pester -MinimumVersion 6.0; Invoke-Pester -Path scripts/tests -CI\"",
+    "serve": "node dist/cli.js serve"
   },
   "dependencies": {
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
     "yaml": "^2.9.0"
   },
   "devDependencies": {
@@ -22,7 +26,7 @@
     "typescript": "^5.9.0"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "license": "MIT"
 }

@@ -1,43 +1,51 @@
+# Copyright (c) 2026 DPSystems, LLC.
+# ABOUTME: Runs the Evaluator service on the NAS with a read-only root, no capabilities, and data under /volume2.
 services:
-  evaluator:
-    build: .
+  evaluator-agent:
     image: "${EVALUATOR_IMAGE:-evaluator-agent:local}"
     container_name: evaluator-agent
     restart: unless-stopped
-    ports:
-      - "${EVALUATOR_HTTP_PORT:-8080}:8080"
+    # Host networking: this NAS drops bridge-network NAT for outbound traffic, which the
+    # evaluator needs for GitHub, the OpenAI API, and package registries. The service
+    # listens on 8080; the Coding Agent owns 8081.
+    network_mode: host
     env_file:
       - ./.runtime.env
-    volumes:
-      - "${EVALUATOR_GITHUB_APP_PRIVATE_KEY_HOST_PATH:?Set EVALUATOR_GITHUB_APP_PRIVATE_KEY_HOST_PATH}:/run/secrets/github-app.pem:ro"
     environment:
       PORT: "8080"
-      # Codex rejects helper binaries under /tmp, so its stateless session lives on a dedicated writable tmpfs mount.
-      HOME: /home/evaluator
-      CODEX_HOME: /home/evaluator/.codex
-    # Docker's embedded resolver cannot reach the NAS resolver from this bridge network.
-    # Use public resolvers only for this stateless evaluator service, keeping the change scoped.
-    dns:
-      - 1.1.1.1
-      - 8.8.8.8
+      EVALUATOR_WORK_ROOT: /work
+      EVALUATOR_MANIFEST: /config/manifest.json
+      EVALUATOR_GITHUB_APP_PRIVATE_KEY_FILE: /config/github-app.pem
+      # Shared caches so each run does not re-download dependencies and browsers.
+      EVALUATOR_COMMAND_ENV_npm_config_cache: /cache/npm
+      EVALUATOR_COMMAND_ENV_PLAYWRIGHT_BROWSERS_PATH: /cache/ms-playwright
+    volumes:
+      - "${EVALUATOR_DATA:-/volume2/docker/evaluator-agent-data}/work:/work"
+      - "${EVALUATOR_DATA:-/volume2/docker/evaluator-agent-data}/cache:/cache"
+      - ./manifest.json:/config/manifest.json:ro
+      # The installer places this copy, readable only by root; the service opens it before dropping root.
+      - "${EVALUATOR_DATA:-/volume2/docker/evaluator-agent-data}/secrets/github-app.pem:/config/github-app.pem:ro"
+    # Starts as root with only SETUID and SETGID so it can read the root-only key, then switches
+    # to the evaluator user for good before any job runs (src/privileges.ts).
+    user: "0:0"
     read_only: true
     tmpfs:
       - /tmp
-      - /home/evaluator/.codex:uid=10001,gid=10001,mode=0700
-    command:
-      # Codex requires a login session even when OPENAI_API_KEY is already available to the process.
-      - sh
-      - -ec
-      - |
-        mkdir -p "$$CODEX_HOME"
-        printenv OPENAI_API_KEY | codex login --with-api-key
-        exec node dist/service.js
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    cap_add:
+      - SETUID
+      - SETGID
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8080/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3
