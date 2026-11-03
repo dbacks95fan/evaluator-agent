@@ -46,6 +46,26 @@ Describe 'deploy-synology' {
             Remove-Item -LiteralPath $dir -Recurse -Force
         }
     }
+
+    It 'starts under -File with its default parameters' {
+        # Windows PowerShell 5.1 leaves $PSScriptRoot empty in parameter defaults under -File, which
+        # dot-sourcing cannot exercise. An unknown revision stops the run before any build or NAS contact.
+        $script = Join-Path (Split-Path -Parent $PSScriptRoot) 'deploy-synology.ps1'
+        $out = [System.IO.Path]::GetTempFileName()
+        $err = [System.IO.Path]::GetTempFileName()
+        try {
+            $argumentList = @('-NoProfile', '-File', "`"$script`"", '-Ref', 'no-such-revision', '-NasHost', 'invalid.example')
+            $process = Start-Process -FilePath 'powershell' -ArgumentList $argumentList -NoNewWindow -Wait -PassThru `
+                -RedirectStandardOutput $out -RedirectStandardError $err
+            $output = (Get-Content -LiteralPath $out, $err -Raw) -join "`n"
+            $process.ExitCode | Should -Not -Be 0
+            $output | Should -Not -Match 'Cannot bind argument'
+            $output | Should -Match 'no-such-revision'
+        }
+        finally {
+            Remove-Item -LiteralPath $out, $err -Force
+        }
+    }
 }
 
 Describe 'set-nas-secrets' {

@@ -10,7 +10,9 @@ param(
     [string]$RemoteUser = 'DockerDeploy',
     # The shared check manifest is the Coding Agent's (one source of trusted checks); its committed
     # copy in this sibling checkout is deployed, so an uncommitted edit can never reach the NAS.
-    [string]$ManifestRepo = (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) 'coding-agent'),
+    # Defaults to ..\coding-agent beside this repository. Resolved in the body: Windows PowerShell 5.1
+    # leaves $PSScriptRoot empty while evaluating parameter defaults under -File.
+    [string]$ManifestRepo,
     # Build the package into this folder and stop, without contacting the NAS.
     [string]$PackageOnly
 )
@@ -60,6 +62,7 @@ function Invoke-Native {
 # Dot-sourcing this file (as the tests do) only defines the functions above.
 if ($MyInvocation.InvocationName -ne '.') {
     $repo = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+    if (-not $ManifestRepo) { $ManifestRepo = Join-Path (Split-Path -Parent $repo) 'coding-agent' }
     $commit = (git -C $repo rev-parse $Ref).Trim()
     if ($LASTEXITCODE -ne 0) { throw "Unknown revision $Ref." }
     $image = Get-ImageTag -Commit $commit
